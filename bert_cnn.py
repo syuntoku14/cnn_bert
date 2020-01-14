@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from pytorch_pretrained_bert import BertModel, BertTokenizer
 import torch.nn.utils.rnn as rnn
 import torch.nn.functional as F
+import torch.utils.data as data
 import sys
 from torch.nn.utils import clip_grad_norm_
 import parser
@@ -33,7 +34,6 @@ class BertDataset(Dataset):
         for param in self.bert.parameters():
             param.requires_grad = False
         self.bert.eval()
-        self.bert.to(device)
 
         # input characters
         self.CHAR_VOCAB_SIZE = 128
@@ -115,7 +115,12 @@ if __name__ == "__main__":
     num_epochs = args.num_epochs
 
     dataset = BertDataset(device)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    # test train
+    SAMPLE_SIZE = len(dataset)
+    TRAIN_SIZE = int(SAMPLE_SIZE * 0.8)
+    train_dataset, val_dataset = data.random_split(dataset, [TRAIN_SIZE, SAMPLE_SIZE - TRAIN_SIZE])
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
     CHAR_VOCAB_SIZE = 128
     BERT_EMBED_DIM = 768
@@ -123,6 +128,7 @@ if __name__ == "__main__":
             char_len=dataset.chars.shape[1], embed_dim=args.embed_size,
             chan_size=args.channel_size, hid_size=args.hidden_size,
             bert_hid_size=BERT_EMBED_DIM)
+    model.to(device)
     # Loss and optimizer
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -130,7 +136,8 @@ if __name__ == "__main__":
     print("training start")
     # Train the model
     for epoch in range(args.num_epochs):
-        for batch, (inputs, targets) in enumerate(dataloader):
+        model.train()
+        for batch, (inputs, targets) in enumerate(train_dataloader):
             # Forward pass
             outputs = model(inputs)
             loss = criterion(outputs, targets)
@@ -140,10 +147,18 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            if batch % 100 == 0:
-                print('Epoch [{}/{}], Step[{}/{}], Loss: {:.4f}'
-                      .format(epoch+1, args.num_epochs, batch, len(dataloader), loss.item()))
+            if batch % 20 == 0:
+                print('Training: Epoch [{}/{}], Step[{}/{}], Loss: {:.4f}'
+                      .format(epoch+1, args.num_epochs, batch, len(train_dataloader), loss.item()))
 
+        test_loss = 0
+        model.eval()
+        for batch, (inputs, targets) in enumerate(val_dataloader):
+            # Forward pass
+            outputs = model(inputs)
+            test_loss += criterion(outputs, targets)
+        print('Test: Epoch {}, Loss: {:.4f}'
+                .format(epoch+1, test_loss.item() / len(val_dataloader)))
 
     # Save the model checkpoints
     torch.save(model.state_dict(),
