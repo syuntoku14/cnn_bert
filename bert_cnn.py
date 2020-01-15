@@ -12,7 +12,7 @@ from torch.nn.utils import clip_grad_norm_
 import parser
 import torch
 import os
-
+import IPython
 
 def is_word_unfeasible(word):
     def is_ascii(word):
@@ -39,6 +39,7 @@ class BertDataset(Dataset):
         self.CHAR_VOCAB_SIZE = 128
         words = self.tokenizer.vocab.keys()
         self.vocabs = [word for word in words if not is_word_unfeasible(word)]
+        print("{} -> {}".format(len(words), len(self.vocabs)))
         self.chars = [torch.LongTensor([ord(c) for c in word])
                       for word in self.vocabs]
         self.chars = rnn.pad_sequence(self.chars).to(self.device).T
@@ -97,6 +98,25 @@ class CNN_LM(nn.Module):
         x = self.fc2(x)  # (batch_size, vocab_size)
         return x
 
+def to_word(chars):
+    return ''.join(map(lambda ch: chr(ch), filter(lambda ch: ch != 0, chars)))
+
+def find_closest_words(index, inputs, outputs, targets):
+    words = inputs[torch.norm(targets - outputs[index], dim=1).topk(20, largest=False).indices]
+    #words = inputs[(torch.argsort(torch.norm(targets - outputs[index], dim=1)) < 20).nonzero().squeeze(1)]
+    return list(map(to_word, words.to(torch.device('cpu')).tolist()))
+
+def run_model_through_dataset(dataloader, model):
+    inputs = []
+    outputs = []
+    targets = []
+    model.eval()
+    for inputs_, targets_ in dataloader:
+        outputs_ = model(inputs_)
+        inputs.append(inputs_)
+        outputs.append(outputs_)
+        targets.append(targets_)
+    return (torch.cat(inputs, dim=0), torch.cat(outputs, dim=0), torch.cat(targets, dim=0))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -106,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument('--channel_size', type=int, default=32)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--learning_rate', type=float, default=0.001)
+    parser.add_argument('--skip_train', type=bool, default=False)
     args = parser.parse_args()
 
     # Device configuration
@@ -128,38 +149,46 @@ if __name__ == "__main__":
             char_len=dataset.chars.shape[1], embed_dim=args.embed_size,
             chan_size=args.channel_size, hid_size=args.hidden_size,
             bert_hid_size=BERT_EMBED_DIM)
-    model.to(device)
+    model = model.to(device)
     # Loss and optimizer
-    criterion = nn.MSELoss()
+    criterion = nn.MSELoss(reduction="sum")
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.9)
 
-    print("training start")
-    # Train the model
-    for epoch in range(args.num_epochs):
-        model.train()
-        for batch, (inputs, targets) in enumerate(train_dataloader):
-            # Forward pass
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+    if args.skip_train:
+        checkpoint = torch.load('./data/bert_cnn.ckpt')
+        model.load_state_dict(checkpoint)
+        IPython.embed()
+    else:
+        print("training start")
+        # Train the model
+        for epoch in range(args.num_epochs):
+            model.train()
+            for batch, (inputs, targets) in enumerate(train_dataloader):
+                # Forward pass
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
 
-            # Backward and optimize
-            model.zero_grad()
-            loss.backward()
-            optimizer.step()
+                # Backward and optimize
+                model.zero_grad()
+                loss.backward()
+                optimizer.step()
 
-            if batch % 20 == 0:
-                print('Training: Epoch [{}/{}], Step[{}/{}], Loss: {:.4f}'
-                      .format(epoch+1, args.num_epochs, batch, len(train_dataloader), loss.item()))
+                if batch % 20 == 0:
+                    print('Training: Epoch [{}/{}], Step[{}/{}], Loss: {:.4f}'
+                        .format(epoch+1, args.num_epochs, batch, len(train_dataloader), loss.item()))
 
-        test_loss = 0
-        model.eval()
-        for batch, (inputs, targets) in enumerate(val_dataloader):
-            # Forward pass
-            outputs = model(inputs)
-            test_loss += criterion(outputs, targets)
-        print('Test: Epoch {}, Loss: {:.4f}'
-                .format(epoch+1, test_loss.item() / len(val_dataloader)))
+            scheduler.step()
 
-    # Save the model checkpoints
-    torch.save(model.state_dict(),
-               '/home/aab11165ig/language_model/data/bert_cnn.ckpt')
+            test_loss = 0
+            model.eval()
+            for batch, (inputs, targets) in enumerate(val_dataloader):
+                # Forward pass
+                outputs = model(inputs)
+                test_loss += criterion(outputs, targets)
+            print('Test: Epoch {}, Loss: {:.4f}'
+                    .format(epoch+1, test_loss.item() / len(val_dataloader)))
+
+        # Save the model checkpoints
+        torch.save(model.state_dict(), './data/bert_cnn.ckpt')
+
