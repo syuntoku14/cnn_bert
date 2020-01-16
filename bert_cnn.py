@@ -17,8 +17,8 @@ import IPython
 def is_word_unfeasible(word):
     def is_ascii(word):
         return all(ord(c) < 128 for c in word)
-    return ("unused" in word 
-            or "#" in word 
+    return ("unused" in word
+            or "#" in word
             or not is_ascii(word)
             or len(word) < 3)
 
@@ -67,7 +67,9 @@ class Conv1dBlockBN(nn.Module):
                       kernel_size=kernel_size, stride=stride),
             nn.Dropout(p),
             nn.PReLU(),
-            nn.BatchNorm1d(out_channel)
+            # when check a single word's neiborhoods, we cannot use batchnorm.
+            # therefore, I comment out (xiaobai sun)
+            #nn.BatchNorm1d(out_channel)
         )
 
     def forward(self, x):
@@ -106,6 +108,44 @@ def find_closest_words(index, inputs, outputs, targets):
     #words = inputs[(torch.argsort(torch.norm(targets - outputs[index], dim=1)) < 20).nonzero().squeeze(1)]
     return list(map(to_word, words.to(torch.device('cpu')).tolist()))
 
+def get_word_in_ids(word,max_word_size=18):
+    words = [word, ' '*max_word_size]#add dummy string for padding
+    chars = [torch.LongTensor([ord(c) for c in word]) for word in words]
+    chars = rnn.pad_sequence(chars).to('cpu').T
+    return chars[0].unsqueeze(0)
+
+def get_top_n_th_similar_words(word_in_ids,all_words_embedding_vec,input_word_ids,top_n=20):
+    cos_sim = nn.CosineSimilarity(dim=1,eps=1e-6)
+    out = model(word_in_ids)
+    similar_word_ids = -cos_sim(all_words_embedding_vec,out)
+    
+    words = input_word_ids[similar_word_ids.topk(top_n,largest=False).indices]
+    return list(map(to_word,words.to(torch.device('cpu')).tolist())) 
+
+def get_similar_words(input_word,top_n=20):
+    '''
+    input_word:str
+    all_words_embedding_vec:torch.tensor([whole size,768])
+    return: list of str
+    '''
+    input_word_ids = []
+    output_word_ids = []
+    target_word_ids = []
+
+    for inputs, targets in val_dataloader:
+        input_word_ids.append(inputs)
+        target_word_ids.append(targets)
+    for inputs, targets in train_dataloader:
+        input_word_ids.append(inputs)
+        target_word_ids.append(targets)
+    input_word_ids = torch.cat(input_word_ids)
+    target_word_ids = torch.cat(target_word_ids)
+    
+    #model_output_one_batch = model(input_word_ids)
+    
+    input_ = get_word_in_ids(input_word)
+    words = get_top_n_th_similar_words(input_.to(device),model(input_word_ids),input_word_ids)
+    return words
 def run_model_through_dataset(dataloader, model):
     inputs = []
     outputs = []
@@ -127,6 +167,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--skip_train', type=bool, default=False)
+    parser.add_argument('--loss_type', type=str, default='cos')
     args = parser.parse_args()
 
     # Device configuration
@@ -145,19 +186,24 @@ if __name__ == "__main__":
 
     CHAR_VOCAB_SIZE = 128
     BERT_EMBED_DIM = 768
-    model = CNN_LM(char_vocab_size=CHAR_VOCAB_SIZE, 
+    model = CNN_LM(char_vocab_size=CHAR_VOCAB_SIZE,
             char_len=dataset.chars.shape[1], embed_dim=args.embed_size,
             chan_size=args.channel_size, hid_size=args.hidden_size,
             bert_hid_size=BERT_EMBED_DIM)
     model = model.to(device)
     # Loss and optimizer
-    criterion = nn.MSELoss(reduction="sum")
+    #criterion = nn.MSELoss(reduction="sum")
+    if args.loss_type =='cos':
+        criterion = nn.CosineEmbeddingLoss()
+    else:
+        criterion = nn.MSELoss(reduction="sum")
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.9)
 
     if args.skip_train:
         checkpoint = torch.load('./data/bert_cnn.ckpt')
         model.load_state_dict(checkpoint)
+        model.eval()
         IPython.embed()
     else:
         print("training start")
@@ -167,7 +213,12 @@ if __name__ == "__main__":
             for batch, (inputs, targets) in enumerate(train_dataloader):
                 # Forward pass
                 outputs = model(inputs)
-                loss = criterion(outputs, targets)
+                if args.loss_type =='cos':
+                    y = torch.ones(inputs.size()[0]).to(device)
+                    y.requires_grad = False
+                    loss = criterion(outputs, targets,y)
+                else:
+                    loss = criterion(outputs, targets)
 
                 # Backward and optimize
                 model.zero_grad()
@@ -185,7 +236,13 @@ if __name__ == "__main__":
             for batch, (inputs, targets) in enumerate(val_dataloader):
                 # Forward pass
                 outputs = model(inputs)
-                test_loss += criterion(outputs, targets)
+                #test_loss += criterion(outputs, targets)
+                if args.loss_type =='cos':
+                    y = torch.ones(inputs.size()[0]).to(device)
+                    y.requires_grad = False
+                    test_loss += criterion(outputs, targets,y)
+                else:
+                    test_loss += criterion(outputs, targets)
             print('Test: Epoch {}, Loss: {:.4f}'
                     .format(epoch+1, test_loss.item() / len(val_dataloader)))
 
