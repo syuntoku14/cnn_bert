@@ -17,8 +17,8 @@ import IPython
 def is_word_unfeasible(word):
     def is_ascii(word):
         return all(ord(c) < 128 for c in word)
-    return ("unused" in word 
-            or "#" in word 
+    return ("unused" in word
+            or "#" in word
             or not is_ascii(word)
             or len(word) < 3)
 
@@ -145,6 +145,48 @@ def find_closest_words(index, inputs, outputs, targets):
     #words = inputs[(torch.argsort(torch.norm(targets - outputs[index], dim=1)) < 20).nonzero().squeeze(1)]
     return list(map(to_word, words.to(torch.device('cpu')).tolist()))
 
+def get_word_in_ids(word,max_word_size=18):
+    words = [word, ' '*max_word_size]#add dummy string for padding
+    chars = [torch.LongTensor([ord(c) for c in word]) for word in words]
+    chars = rnn.pad_sequence(chars).to('cpu').T
+    return chars[0].unsqueeze(0)
+
+def get_top_n_th_similar_words(word_in_ids,all_words_embedding_vec,input_word_ids,top_n=20):
+    cos_sim = nn.CosineSimilarity(dim=1,eps=1e-6)
+    out = model(word_in_ids)
+    similar_word_ids = -cos_sim(all_words_embedding_vec,out)
+
+    #words = input_word_ids[similar_word_ids.topk(top_n,largest=False).indices]
+    words = inputt_word_ids[similar_word_ids.topk(top_n,largest=False).indices]
+    #return list(map(to_word,words.to(torch.device('cpu')).tolist()))
+    return words
+
+def get_similar_words(input_word,top_n=20):
+    '''
+    input_word:str
+    all_words_embedding_vec:torch.tensor([whole size,768])
+    return: list of str
+    '''
+    input_word_ids = []
+    output_word_ids = []
+    target_word_ids = []
+
+    for inputs, targets in val_dataloader:
+        input_word_ids.append(inputs)
+        target_word_ids.append(targets)
+    for inputs, targets in train_dataloader:
+        input_word_ids.append(inputs)
+        target_word_ids.append(targets)
+    input_word_ids = torch.cat(input_word_ids)
+    target_word_ids = torch.cat(target_word_ids)
+
+    #model_output_one_batch = model(input_word_ids)
+
+    input_ = get_word_in_ids(input_word)
+    #words = get_top_n_th_similar_words(input_.to(device),model(input_word_ids),input_word_ids)
+    words = get_top_n_th_similar_words(input_.to(device),target_word_ids,input_word_ids)
+    return words
+
 def run_model_through_dataset(dataloader, model):
     inputs = []
     outputs = []
@@ -184,7 +226,7 @@ if __name__ == "__main__":
 
     CHAR_VOCAB_SIZE = 128
     BERT_EMBED_DIM = 768
-    #model = CNN_LM(char_vocab_size=CHAR_VOCAB_SIZE, 
+    #model = CNN_LM(char_vocab_size=CHAR_VOCAB_SIZE,
     #        char_len=dataset.chars.shape[1], embed_dim=args.embed_size,
     #        chan_size=args.channel_size, hid_size=args.hidden_size,
     #        bert_hid_size=BERT_EMBED_DIM)

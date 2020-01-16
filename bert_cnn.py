@@ -118,9 +118,9 @@ def get_top_n_th_similar_words(word_in_ids,all_words_embedding_vec,input_word_id
     cos_sim = nn.CosineSimilarity(dim=1,eps=1e-6)
     out = model(word_in_ids)
     similar_word_ids = -cos_sim(all_words_embedding_vec,out)
-    
+
     words = input_word_ids[similar_word_ids.topk(top_n,largest=False).indices]
-    return list(map(to_word,words.to(torch.device('cpu')).tolist())) 
+    return list(map(to_word,words.to(torch.device('cpu')).tolist()))
 
 def get_similar_words(input_word,top_n=20):
     '''
@@ -140,9 +140,9 @@ def get_similar_words(input_word,top_n=20):
         target_word_ids.append(targets)
     input_word_ids = torch.cat(input_word_ids)
     target_word_ids = torch.cat(target_word_ids)
-    
+
     #model_output_one_batch = model(input_word_ids)
-    
+
     input_ = get_word_in_ids(input_word)
     words = get_top_n_th_similar_words(input_.to(device),model(input_word_ids),input_word_ids)
     return words
