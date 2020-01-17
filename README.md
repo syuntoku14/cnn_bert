@@ -7,4 +7,4 @@ $ python bert_large_cnn.py --skip_train
 
 #get simialr words(after execute bert_large_cnn.py)<br>
 
->> print_closest_words(index, inputs, outputs, targets) ## this command will print out similar words
+[0]\: print_closest_words(index, inputs, outputs, targets) ## this command will print out similar words
