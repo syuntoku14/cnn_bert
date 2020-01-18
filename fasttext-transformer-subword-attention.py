@@ -50,7 +50,7 @@ class FastTextAttentionEmbedding(nn.Embedding):
         input_matrix = self.model.get_input_matrix()
         vocab_size, emb_size = input_matrix.shape # (vocab_size, emb_size)
 
-        super().__init__(vocab_size, emb_size)
+        super().__init__(vocab_size, emb_size, padding_idx=-1)
         self.weight.data.copy_(torch.FloatTensor(input_matrix))
         from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
@@ -105,16 +105,10 @@ class FastTextAttentionEmbedding(nn.Embedding):
         orig = indices.shape
         indices = indices.view(orig[0] * orig[1])
 
-        embs_list = []
-        for index in indices:
-            word = self.itos[index]
-            #_, subinds = self.model.get_subwords(word)
-            #embs = super().forward(torch.LongTensor(subinds).to(self.device))
-            subinds = self.get_subwords(word)
-            embs = super().forward(subinds) # (number_of_ngrams, emb_size)
-            embs_list.append(embs)
+        subinds_list = [ self.get_subwords(self.itos[index]).unsqueeze(0) for index in indices ] # list of (1, number_of_ngrams)
+        subinds_mat = pad_sequence(subinds_list, batch_first=True, padding_value=-1) # (batch, max_number_of_ngrams) 
+        embs_batch = super().forward(subinds_mat) # (batch, max_number_of_ngrams, emb_size)
 
-        embs_batch = pad_sequence(embs_list, batch_first=True) # (batch, max_number_of_ngrams, emb_size)
         out = self.transformer_forward(embs_batch) # (batch, time, emb_size)
         out = out.permute(1, 0, 2) # (time, batch, emb_size)
         out = out[-1] # (batch, emb_size)
