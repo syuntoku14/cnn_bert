@@ -217,7 +217,7 @@ def evaluate(eval_model, data_source):
 
 NO_TRAIN=False
 #MODEL_PATH='./data/transformer-fasttext-big-subword-attention.ckpt'
-MODEL_PATH='./data/transformer-fasttext-subword-attention.ckpt'
+MODEL_PATH='./data/transformer-fasttext-subword-attention.ckpt' # test loss  5.24 | test ppl   189.51
 #MODEL_PATH='./data/transformer-fasttext-dropout-big-subword-attention.ckpt'
 
 MAX_SENT_LEN=100
