@@ -3,7 +3,6 @@ import torch.nn as nn
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from pytorch_pretrained_bert import BertModel, BertTokenizer
 import string
 import re
 import sys
@@ -11,7 +10,6 @@ import argparse
 import torch.nn.utils.rnn as rnn
 import torch.nn.functional as F
 import torch.utils.data as data
-import IPython
 
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -173,6 +171,7 @@ class charLM(nn.Module):
         self.char_emb_dim = char_emb_dim
         self.word_emb_dim = word_emb_dim
         self.vocab_size = vocab_size
+        self.device = device
 
         # char embedding layer
         self.char_embed = nn.Embedding(char_size, char_emb_dim)
@@ -269,8 +268,8 @@ class charLM(nn.Module):
         return x, hidden
     
     def init_hidden(self, batch_size):
-        return (torch.zeros(2, batch_size, self.word_emb_dim), \
-                torch.zeros(2, batch_size, self.word_emb_dim))
+        return (torch.zeros(2, batch_size, self.word_emb_dim).to(self.device), \
+                torch.zeros(2, batch_size, self.word_emb_dim).to(self.device))
 
 
     def conv_layers(self, x):
@@ -297,17 +296,19 @@ def compute_loss(crit, pred, _target, lens):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path_corpus', type=str, default='data/browncorpus.txt')
+    parser.add_argument('--data_path', type=str)
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--skip_train', type=bool, default=False)
     args = parser.parse_args()
 
+    path_corpus = args.data_path + "/browncorpus.txt"
+
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    dataset = BrownDataset(args.path_corpus, device)
+    dataset = BrownDataset(path_corpus, device)
     dataloader = DataLoader(dataset, batch_size=args.batch_size,
                             shuffle=True, collate_fn=dataset.collate)
     vocab_size = dataset.vocab_size
@@ -354,7 +355,7 @@ if __name__ == "__main__":
             for batch, (seq_lens, inputs, targets) in enumerate(train_dataloader):
                 seq_lens, inputs, targets = get_data(seq_lens, inputs, targets, device)
                 # Forward pass
-                hidden = model.init_hidden(args.batch_size)
+                hidden = model.init_hidden(inputs.shape[0])
                 pred, _ = model(inputs, hidden)
                 loss = compute_loss(criterion, pred, targets, seq_lens)
 
@@ -374,12 +375,13 @@ if __name__ == "__main__":
             for batch, (seq_lens, inputs, targets) in enumerate(val_dataloader):
                 seq_lens, inputs, targets = get_data(seq_lens, inputs, targets, device)
                 # Forward pass
-                hidden = model.init_hidden(args.batch_size)
+                hidden = model.init_hidden(inputs.shape[0])
                 pred, _ = model(inputs, hidden)
-                test_loss += compute_loss(criterion, pred, targets, seq_lens)
+                loss = compute_loss(criterion, pred, targets, seq_lens)
+                test_loss += loss.item()
 
             print('Test: Epoch {}, Loss: {:.4f}'
-                  .format(epoch+1, test_loss.item() / len(val_dataloader)))
+                  .format(epoch+1, test_loss / len(val_dataloader)))
 
         # Save the model checkpoints
-        torch.save(model.state_dict(), './data/bert_cnn.ckpt')
+        torch.save(model.state_dict(), args.data_path + '/charlm.ckpt')
