@@ -11,39 +11,6 @@ from collections import defaultdict
 from tqdm import tqdm
 from torch.nn.utils.rnn import pad_sequence
 
-# taken from https://github.com/facebookresearch/fastText/blob/master/python/doc/examples/FastTextEmbeddingBag.py
-class FastTextEmbeddingBag(nn.EmbeddingBag):
-    def __init__(self, model_path, itos, device):
-        self.model = load_model(model_path)
-        input_matrix = self.model.get_input_matrix()
-        input_matrix_shape = input_matrix.shape
-        self.itos = itos
-        self.device = device
-        super().__init__(input_matrix_shape[0], input_matrix_shape[1])
-        self.weight.data.copy_(torch.FloatTensor(input_matrix))
-
-    def forward(self, indices):
-        #print(indices.shape)
-        orig = indices.shape
-        indices = indices.view(orig[0] * orig[1])
-
-        word_subinds = np.empty([0], dtype=np.int64)
-        word_offsets = [0]
-        for index in indices:
-            word = self.itos[index]
-            _, subinds = self.model.get_subwords(word)
-            word_subinds = np.concatenate((word_subinds, subinds))
-            word_offsets.append(word_offsets[-1] + len(subinds))
-        word_offsets = word_offsets[:-1]
-        ind = torch.LongTensor(word_subinds).to(device)
-        offsets = torch.LongTensor(word_offsets).to(device)
-
-        result = super().forward(ind, offsets)
-        #print(result.shape)
-        result = result.view(orig[0], orig[1], -1)
-        #print(result.shape)
-        return result
-
 class FastTextAttentionEmbedding(nn.Embedding):
     def __init__(self, model_path, itos, device, nhead, nhid, nlayers, dropout):
         self.model = load_model(model_path)
@@ -83,24 +50,6 @@ class FastTextAttentionEmbedding(nn.Embedding):
         self.subinds_cache[word] = torch.LongTensor(subinds).to(self.device)
         return self.subinds_cache[word]
 
-#    def forward(self, indices):
-#        orig = indices.shape
-#        indices = indices.view(orig[0] * orig[1])
-#
-#        out = []
-#        for index in indices:
-#            word = self.itos[index]
-#            #_, subinds = self.model.get_subwords(word)
-#            #embs = super().forward(torch.LongTensor(subinds).to(self.device))
-#            subinds = self.get_subwords(word)
-#            embs = super().forward(subinds)
-#            embs = embs.unsqueeze(0) # (1, number_of_ngrams, emb_size)
-#            o = self.transformer_forward(embs).squeeze(0)[-1]
-#            out.append(o) # (1, emb_size)
-#        out = torch.cat(out, dim=0) # (orig[0] * orig[1], emb_size)
-#        out = out.view(orig[0], orig[1], -1) # (orig[0], orig[1], emb_size)
-#        return out
-
     def forward(self, indices):
         orig = indices.shape
         indices = indices.view(orig[0] * orig[1])
@@ -111,8 +60,7 @@ class FastTextAttentionEmbedding(nn.Embedding):
         embs_batch = super().forward(subinds_mat) # (batch, max_number_of_ngrams, emb_size)
 
         out = self.transformer_forward(embs_batch) # (batch, time, emb_size)
-        out = out.permute(1, 0, 2) # (time, batch, emb_size)
-        out = out[-1] # (batch, emb_size)
+        out = out.sum(1) # (batch, emb_size)
 
         out = out.view(orig[0], orig[1], -1) # (orig[0], orig[1], emb_size)
         return out
