@@ -96,7 +96,7 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
-TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText103, device="cpu", batch_size=32)
+TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText103, device="cpu", batch_size=16)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ntokens = len(TEXT.vocab.stoi) # the size of vocabulary

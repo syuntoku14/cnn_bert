@@ -24,7 +24,7 @@ def get_dataset(dataset, vectors=None, device=None, batch_size=128):
     print("dataset loaded on: ", device)
 
     eval_batch_size = 10
-    bptt_len = 64
+    bptt_len = 60
     return (TEXT, data.BPTTIterator.splits(
             (train_txt, val_txt, test_txt), batch_sizes=(batch_size, eval_batch_size, eval_batch_size), bptt_len=bptt_len, device=device))
 
@@ -63,6 +63,8 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
                         cur_loss, math.exp(cur_loss)))
                 total_loss = 0
                 start_time = time.time()
+
+            del loss
 
     def evaluate(eval_model, data_iter):
         eval_model.eval() # Turn on the evaluation mode
