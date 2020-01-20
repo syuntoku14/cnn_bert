@@ -93,4 +93,4 @@ model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, device, dropout)
 NO_TRAIN=False
 MODEL_PATH='./data/transformer.ckpt'
 
-main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN)
+main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN, epochs=15)

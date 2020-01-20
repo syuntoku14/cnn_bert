@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import itertools
 from tqdm import tqdm
 
-def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_train):
+def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_train, epochs):
     criterion = nn.CrossEntropyLoss()
     lr = 5.0 # learning rate
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
@@ -73,7 +73,6 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
         IPython.embed()
     else:
         best_val_loss = float("inf")
-        epochs = 15 # The number of epochs
         best_model = None
 
         for epoch in range(1, epochs + 1):
