@@ -173,25 +173,22 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
-TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText2)
+TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText103, device="cpu", batch_size=16)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ntokens = len(TEXT.vocab.stoi) # the size of vocabulary
 emsize = 100 # embedding dimension
 nhid = 200 # the dimension of the feedforward network model in nn.TransformerEncoder
 nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-#nlayers = 4 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
 nhead = 2 # the number of heads in the multiheadattention models
-#nhead = 4 # the number of heads in the multiheadattention models
 dropout = 0.2 # the dropout value
-#dropout = 0.4 # the dropout value
 model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, device,
         fasttext_model_path="/home/ubuntu/fil9.bin", itos=TEXT.vocab.itos, dropout=dropout).to(device)
 
 NO_TRAIN=False
 #MODEL_PATH='./data/transformer-fasttext-subword-attention.ckpt' # test loss  5.56 | test ppl   260.43
 #MODEL_PATH='./data/transformer-fasttext-subword-attention-canonical.ckpt'
-MODEL_PATH='./data/transformer-fasttext-subword-attention-vanilla.ckpt'
+MODEL_PATH='./data/transformer-fasttext-subword-attention-wikitext103.ckpt'
 #MODEL_PATH='./data/transformer-fasttext-dropout-big-subword-attention.ckpt'
 
 lib.main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN, epochs=15)

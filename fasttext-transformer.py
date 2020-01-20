@@ -66,22 +66,19 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
-TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText2)
+TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText103, device="cpu", batch_size=16)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ntokens = len(TEXT.vocab.stoi) # the size of vocabulary
 emsize = 300 # embedding dimension
 nhid = 200 # the dimension of the feedforward network model in nn.TransformerEncoder
-#nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-nlayers = 4 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-#nhead = 2 # the number of heads in the multiheadattention models
-nhead = 4 # the number of heads in the multiheadattention models
+nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
+nhead = 2 # the number of heads in the multiheadattention models
 dropout = 0.2 # the dropout value
-#dropout = 0.4 # the dropout value
 model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, device, vectors=TEXT.vocab.vectors, dropout=dropout).to(device)
 
 NO_TRAIN=False
-MODEL_PATH='./data/transformer-fasttext-big.ckpt'         # test loss  5.20 | test ppl   180.71
+MODEL_PATH='./data/transformer-fasttext-wikitext103.ckpt'
 #MODEL_PATH='./data/transformer-fasttext.ckpt'             # test loss  5.48 | test ppl   238.73
 #MODEL_PATH='./data/transformer-fasttext-dropout-big.ckpt' # test loss  5.71 | test ppl   301.20
 

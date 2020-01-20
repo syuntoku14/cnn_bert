@@ -63,7 +63,7 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
-TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText2)
+TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText103, device="cpu", batch_size=32)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ntokens = len(TEXT.vocab.stoi) # the size of vocabulary
@@ -75,6 +75,6 @@ dropout = 0.2 # the dropout value
 model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, device, dropout).to(device)
 
 NO_TRAIN=False
-MODEL_PATH='./data/transformer.ckpt'
+MODEL_PATH='./data/transformer-wikitext103.ckpt'
 
 lib.main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN, epochs=15)
