@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchtext.data as data
-from train import main
+import torchtext
+import lib
 
 class TransformerModel(nn.Module):
     def __init__(self, ntoken, ninp, nhead, nhid, nlayers, device, dropout=0.5):
@@ -63,21 +64,8 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-import torchtext
-from torchtext.data.utils import get_tokenizer
-TEXT = torchtext.data.Field(tokenize=get_tokenizer("basic_english"),
-                            init_token='<sos>',
-                            eos_token='<eos>',
-                            lower=True)
-train_txt, val_txt, test_txt = torchtext.datasets.WikiText2.splits(TEXT)
-TEXT.build_vocab(train_txt)
+TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText2)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-batch_size = 20
-eval_batch_size = 10
-bptt_len = 35
-train_iter, val_iter, test_iter = data.BPTTIterator.splits(
-        (train_txt, val_txt, test_txt), batch_sizes=(batch_size, eval_batch_size, eval_batch_size), bptt_len=bptt_len, device=device)
 
 ntokens = len(TEXT.vocab.stoi) # the size of vocabulary
 emsize = 200 # embedding dimension
@@ -93,4 +81,4 @@ model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, device, dropout)
 NO_TRAIN=False
 MODEL_PATH='./data/transformer.ckpt'
 
-main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN, epochs=15)
+lib.main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN, epochs=15)

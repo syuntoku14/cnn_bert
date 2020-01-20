@@ -4,6 +4,28 @@ import torch.nn as nn
 import torch.nn.functional as F
 import itertools
 from tqdm import tqdm
+import torchtext
+from torchtext.data.utils import get_tokenizer
+import torchtext.data as data
+
+def get_dataset(dataset, vectors=None):
+    TEXT = torchtext.data.Field(tokenize=get_tokenizer("basic_english"),
+                                init_token='<sos>',
+                                eos_token='<eos>',
+                                lower=True)
+    train_txt, val_txt, test_txt = dataset.splits(TEXT)
+    if vectors is None:
+        TEXT.build_vocab(train_txt)
+    else:
+        TEXT.build_vocab(train_txt, vectors=vectors)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    batch_size = 20
+    eval_batch_size = 10
+    bptt_len = 35
+    return (TEXT, data.BPTTIterator.splits(
+            (train_txt, val_txt, test_txt), batch_sizes=(batch_size, eval_batch_size, eval_batch_size), bptt_len=bptt_len, device=device))
+
 
 def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_train, epochs):
     criterion = nn.CrossEntropyLoss()
