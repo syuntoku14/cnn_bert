@@ -8,7 +8,7 @@ import torchtext
 from torchtext.data.utils import get_tokenizer
 import torchtext.data as data
 
-def get_dataset(dataset, vectors=None, device=None):
+def get_dataset(dataset, vectors=None, device=None, batch_size=128):
     TEXT = torchtext.data.Field(tokenize=get_tokenizer("basic_english"),
                                 init_token='<sos>',
                                 eos_token='<eos>',
@@ -21,8 +21,8 @@ def get_dataset(dataset, vectors=None, device=None):
 
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("dataset loaded on: ", device)
 
-    batch_size = 128
     eval_batch_size = 10
     bptt_len = 64
     return (TEXT, data.BPTTIterator.splits(
@@ -44,7 +44,7 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
         for i, batch in enumerate(train_iter):
             optimizer.zero_grad()
             output = model(batch.text.to(device))
-            loss = criterion(output.view(-1, ntokens), batch.target.to(device).view(-1))
+            loss = criterion(output.view(-1, ntokens), batch.target.view(-1).to(device))
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
