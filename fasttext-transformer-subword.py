@@ -22,7 +22,6 @@ class FastTextEmbeddingBag(nn.EmbeddingBag):
         self.weight.data.copy_(torch.FloatTensor(input_matrix))
 
     def forward(self, indices):
-        #print(indices.shape)
         orig = indices.shape
         indices = indices.view(orig[0] * orig[1])
 
@@ -38,9 +37,7 @@ class FastTextEmbeddingBag(nn.EmbeddingBag):
         offsets = torch.LongTensor(word_offsets).to(device)
 
         result = super().forward(ind, offsets)
-        #print(result.shape)
         result = result.view(orig[0], orig[1], -1)
-        #print(result.shape)
         return result
 
 class TransformerModel(nn.Module):
@@ -72,8 +69,7 @@ class TransformerModel(nn.Module):
 
     def forward(self, src):
         if self.src_mask is None or self.src_mask.size(0) != len(src):
-            device = src.device
-            mask = self._generate_square_subsequent_mask(len(src)).to(device)
+            mask = self._generate_square_subsequent_mask(len(src)).to(self.device)
             self.src_mask = mask
 
         src = self.encoder(src) * math.sqrt(self.ninp)
@@ -100,7 +96,7 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
-TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText103, device="cpu", batch_size=16)
+TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText103, device="cpu", batch_size=32)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ntokens = len(TEXT.vocab.stoi) # the size of vocabulary
@@ -118,4 +114,4 @@ MODEL_PATH='./data/transformer-fasttext-wiki103.ckpt'
 #MODEL_PATH='./data/transformer-fasttext-subword.ckpt'
 #MODEL_PATH='./data/transformer-fasttext-dropout-big-subword.ckpt'
 
-lib.main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN, epochs=15)
+lib.main(device, model, TEXT, train_iter, val_iter, test_iter, MODEL_PATH, NO_TRAIN, epochs=15, no_text_transfer=True)

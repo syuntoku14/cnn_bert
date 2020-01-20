@@ -29,7 +29,7 @@ def get_dataset(dataset, vectors=None, device=None, batch_size=128):
             (train_txt, val_txt, test_txt), batch_sizes=(batch_size, eval_batch_size, eval_batch_size), bptt_len=bptt_len, device=device))
 
 
-def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_train, epochs):
+def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_train, epochs, no_text_transfer=False):
     criterion = nn.CrossEntropyLoss()
     lr = 0.001 # learning rate
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -43,7 +43,8 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
         ntokens = len(TEXT.vocab.stoi)
         for i, batch in enumerate(train_iter):
             optimizer.zero_grad()
-            output = model(batch.text.to(device))
+            text = batch.text if no_text_transfer else batch.text.to(device)
+            output = model(text)
             loss = criterion(output.view(-1, ntokens), batch.target.view(-1).to(device))
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
@@ -69,7 +70,8 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
         ntokens = len(TEXT.vocab.stoi)
         with torch.no_grad():
             for batch in data_iter:
-                output = eval_model(batch.text.to(device))
+                text = batch.text if no_text_transfer else batch.text.to(device)
+                output = eval_model(text)
                 loss = criterion(output.view(-1, ntokens), batch.target.to(device).view(-1)).item()
                 total_loss += loss
         return total_loss / (len(data_iter) - 1)
