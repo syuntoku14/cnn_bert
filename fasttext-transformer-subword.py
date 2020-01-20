@@ -113,7 +113,7 @@ nhead = 4 # the number of heads in the multiheadattention models
 dropout = 0.2 # the dropout value
 #dropout = 0.4 # the dropout value
 model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, device,
-        fasttext_model_path="/home/ubuntu/fil9.bin", itos=TEXT.vocab.itos, dropout=dropout).to(device)
+        fasttext_model_path="/home/ubuntu/fastText/result/fil9.bin", itos=TEXT.vocab.itos, dropout=dropout).to(device)
 
 NO_TRAIN=False
 #MODEL_PATH='./data/transformer-fasttext-big-subword.ckpt' # test loss  5.16 | test ppl   174.89
