@@ -8,7 +8,7 @@ import torchtext
 from torchtext.data.utils import get_tokenizer
 import torchtext.data as data
 
-def get_dataset(dataset, vectors=None):
+def get_dataset(dataset, vectors=None, device=None):
     TEXT = torchtext.data.Field(tokenize=get_tokenizer("basic_english"),
                                 init_token='<sos>',
                                 eos_token='<eos>',
@@ -18,7 +18,9 @@ def get_dataset(dataset, vectors=None):
         TEXT.build_vocab(train_txt)
     else:
         TEXT.build_vocab(train_txt, vectors=vectors)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     batch_size = 128
     eval_batch_size = 10
@@ -41,8 +43,8 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
         ntokens = len(TEXT.vocab.stoi)
         for i, batch in enumerate(train_iter):
             optimizer.zero_grad()
-            output = model(batch.text)
-            loss = criterion(output.view(-1, ntokens), batch.target.view(-1))
+            output = model(batch.text.to(device))
+            loss = criterion(output.view(-1, ntokens), batch.target.to(device).view(-1))
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
@@ -67,8 +69,8 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
         ntokens = len(TEXT.vocab.stoi)
         with torch.no_grad():
             for batch in data_iter:
-                output = eval_model(batch.text)
-                loss = criterion(output.view(-1, ntokens), batch.target.view(-1)).item()
+                output = eval_model(batch.text.to(device))
+                loss = criterion(output.view(-1, ntokens), batch.target.to(device).view(-1)).item()
                 total_loss += loss
         return total_loss / (len(data_iter) - 1)
 
