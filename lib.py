@@ -20,18 +20,18 @@ def get_dataset(dataset, vectors=None):
         TEXT.build_vocab(train_txt, vectors=vectors)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    batch_size = 20
+    batch_size = 128
     eval_batch_size = 10
-    bptt_len = 35
+    bptt_len = 64
     return (TEXT, data.BPTTIterator.splits(
             (train_txt, val_txt, test_txt), batch_sizes=(batch_size, eval_batch_size, eval_batch_size), bptt_len=bptt_len, device=device))
 
 
 def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_train, epochs):
     criterion = nn.CrossEntropyLoss()
-    lr = 5.0 # learning rate
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.95)
+    lr = 0.001 # learning rate
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=3)
 
     import time
     def train():
@@ -48,14 +48,14 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
             optimizer.step()
 
             total_loss += loss.item()
-            log_interval = 200
+            log_interval = 100
             if i % log_interval == 0 and i > 0:
                 cur_loss = total_loss / log_interval
                 elapsed = time.time() - start_time
                 print('| epoch {:3d} | {:5d}/{:5d} batches | '
-                      'lr {:02.2f} | ms/batch {:5.2f} | '
+                      'lr {:f} | ms/batch {:5.2f} | '
                       'loss {:5.2f} | ppl {:8.2f}'.format(
-                        epoch, i, len(train_iter), scheduler.get_lr()[0],
+                        epoch, i, len(train_iter), optimizer.param_groups[0]['lr'],
                         elapsed * 1000 / log_interval,
                         cur_loss, math.exp(cur_loss)))
                 total_loss = 0
@@ -111,7 +111,7 @@ def main(device, model, TEXT, train_iter, val_iter, test_iter, model_path, no_tr
                 best_val_loss = val_loss
                 best_model = model
 
-            scheduler.step()
+            scheduler.step(val_loss)
 
             for _ in range(5):
                 sentence = ' '.join(map(lambda i: TEXT.vocab.itos[i], sample_sentence(model)))

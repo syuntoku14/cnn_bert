@@ -63,19 +63,15 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
-
 TEXT, (train_iter, val_iter, test_iter) = lib.get_dataset(torchtext.datasets.WikiText2)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ntokens = len(TEXT.vocab.stoi) # the size of vocabulary
 emsize = 200 # embedding dimension
-nhid = 80 # the dimension of the feedforward network model in nn.TransformerEncoder
-nlayers = 5 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-#nlayers = 4 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
+nhid = 200 # the dimension of the feedforward network model in nn.TransformerEncoder
+nlayers = 2 # the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
 nhead = 2 # the number of heads in the multiheadattention models
-#nhead = 4 # the number of heads in the multiheadattention models
 dropout = 0.2 # the dropout value
-#dropout = 0.4 # the dropout value
 model = TransformerModel(ntokens, emsize, nhead, nhid, nlayers, device, dropout).to(device)
 
 NO_TRAIN=False
